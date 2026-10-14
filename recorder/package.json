@@ -1,0 +1,13 @@
+{
+  "name": "automcp-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "운영자 업무 시연을 단계 라벨과 함께 HAR로 녹화",
+  "scripts": {
+    "record": "node record.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.55.0"
+  }
+}

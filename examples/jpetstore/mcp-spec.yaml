@@ -1,0 +1,362 @@
+# automcp IR v1 — jpetstore 고객상담 에이전트
+# 작성: explain-legacy skill (해석 에이전트) / 입력: intent.yaml, capture/endpoint-map.json, 소스
+# 승인은 고객 운영자가 한다(review.status). 미승인 tool은 컴파일되지 않는다.
+
+spec_version: automcp/v1
+
+system:
+  name: jpetstore
+  source_root: ../../targets/jpetstore-6
+  capture: capture/endpoint-map.json
+  har: capture/demo.har
+  database:
+    type: postgres
+    source_name: jpetstore-db
+    connection:
+      host: db
+      port: 5432
+      database: jpetstore
+      user: ${MCP_DB_USER}          # 최소권한 계정 mcp_reader
+      password: ${MCP_DB_PASSWORD}
+  http:
+    base_url: http://jpetstore:8080/jpetstore
+    charset: UTF-8
+
+agent:
+  name: cs-agent
+  persona: 고객 상담 직원이 상품·재고·주문을 빠르게 조회하고, 고객 요청 시 주문을 대신 접수하도록 돕는 에이전트
+  acts_as: cs_staff
+
+defaults:
+  max_rows: 50
+
+policies:
+  excluded_columns: [orders.creditcard, orders.exprdate, orders.cardtype, signon.password]
+  pii_output: [orders.billtofirstname, orders.billtolastname, orders.shipaddr1, orders.shiptofirstname, orders.shiptolastname]
+  allow_write: true               # intent UC-5(주문 대리 접수) — 고객사 정책 확인 필요(Q3)
+
+tools:
+  # ───────────────────────────── UC-1 ─────────────────────────────
+  - name: search_products
+    use_case: UC-1 상품 검색
+    side_effect: read
+    description: >-
+      상품명을 키워드로 검색한다. 공백으로 구분한 여러 키워드는 OR 조건이며 대소문자를 무시한다.
+      가격·재고는 get_product_details로 이어서 조회한다.
+    input:
+      keyword: { type: string, description: "검색어. 예: 'fish', 'golden retriever'" }
+    output: [product_id, name, category_id, description]
+    binding:
+      kind: sql
+      reuse: [ProductMapper.searchProductList]
+      transforms: [lowercase, split_whitespace, wrap_like_percent, strip_html(description)]
+      statement: |
+        SELECT DISTINCT p.productid AS product_id,
+               p.name,
+               p.category AS category_id,
+               trim(regexp_replace(p.descn, '<[^>]*>', '', 'g')) AS description
+        FROM product p
+        WHERE lower(p.name) LIKE ANY (
+          SELECT '%' || k || '%'
+          FROM regexp_split_to_table(lower(trim(#{keyword})), '\s+') AS k
+          WHERE k <> '')
+        ORDER BY p.productid
+        LIMIT 50
+    evidence:
+      capture:
+        - { step: UC-1/search-products, trace: bac8479f06f1ad7f02316d92672dd9b7, observed_bind: ["%fish%"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:127
+        - src/main/java/org/mybatis/jpetstore/service/CatalogService.java:111
+        - src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:46
+    deviations:
+      - 원본은 여러 키워드가 같은 상품에 매칭되면 중복 행을 반환하지만 tool은 중복을 제거한다.
+      - 원본은 앞에 공백이 있는 검색어에서 빈 키워드('%%')가 생겨 전체 상품을 반환하지만 tool은 빈 키워드를 무시한다.
+    verify:
+      golden: { step: UC-1/search-products, args: { keyword: fish }, page_regex: "productId=([A-Za-z0-9-]+)", field: product_id }
+      cases:
+        - { name: "SQL 인젝션 문자열은 값으로만 처리", args: { keyword: "zzz'||'" }, expect: { rows: 0 } }
+        - { name: "다중 키워드 OR", args: { keyword: "koi shark" }, expect: { rows: 2 } }
+    review: { status: pending }
+
+  # ───────────────────────────── UC-2 ─────────────────────────────
+  - name: get_product_details
+    use_case: UC-2 상품 상세·가격·재고
+    side_effect: read
+    description: >-
+      상품 ID로 상품 정보와 판매 단위(item)별 가격, 재고 수량을 한 번에 조회한다.
+      주문 대리 접수(place_order)에 쓸 item_id도 여기서 얻는다.
+    input:
+      product_id: { type: string, description: "상품 ID. 예: 'FI-SW-01' (search_products 결과의 product_id)" }
+    output: [product_id, name, item_id, variant, list_price, stock_qty, status]
+    binding:
+      kind: sql
+      reuse: [ItemMapper.getItemListByProduct, ItemMapper.getInventoryQuantity]
+      statement: |
+        SELECT p.productid AS product_id,
+               p.name,
+               i.itemid AS item_id,
+               concat_ws(' ', i.attr1, i.attr2, i.attr3, i.attr4, i.attr5) AS variant,
+               i.listprice AS list_price,
+               v.qty AS stock_qty,
+               i.status
+        FROM item i
+        JOIN product p ON p.productid = i.productid
+        LEFT JOIN inventory v ON v.itemid = i.itemid
+        WHERE i.productid = #{product_id}
+        ORDER BY i.itemid
+        LIMIT 50
+    evidence:
+      capture:
+        - { step: UC-2/view-product, trace: 262737f228595f4abaf8cc72b0bc45f0, observed_bind: ["FI-SW-01"] }
+        - { step: UC-2/view-item, trace: ded5b6e8f3451e37682cdf3b8021c0df, observed_bind: ["EST-1"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:87
+        - src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:26
+        - src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:70
+    deviations:
+      - 원본 화면 두 개(상품 목록, 아이템 상세의 재고)에 나뉜 정보를 한 tool로 합성한다.
+      - 원가(unitcost)·공급사(supplier)는 상담 용도에 불필요하므로 제외한다.
+    verify:
+      golden: { step: UC-2/view-product, args: { product_id: FI-SW-01 }, page_regex: "itemId=([A-Za-z0-9-]+)", field: item_id }
+    review: { status: pending }
+
+  # ───────────────────────────── UC-4 ─────────────────────────────
+  - name: list_products_by_category
+    use_case: UC-4 카테고리별 상품 목록
+    side_effect: read
+    description: >-
+      카테고리의 상품 목록을 가격대(최저·최고가)와 총 재고와 함께 조회한다.
+      category_id는 FISH, DOGS, CATS, REPTILES, BIRDS 중 하나다(대소문자 무시).
+      예: "강아지 상품 뭐 있어요?" → DOGS. 상품별 상세는 get_product_details를 쓴다.
+    input:
+      category_id: { type: string, description: "카테고리 ID: FISH, DOGS, CATS, REPTILES, BIRDS 중 하나" }
+    output: [category_id, category_name, product_id, name, description, min_price, max_price, total_stock]
+    binding:
+      kind: sql
+      reuse: [ProductMapper.getProductListByCategory, CategoryMapper.getCategory]
+      transforms: [uppercase(category_id), strip_html(description)]
+      statement: |
+        SELECT c.catid AS category_id,
+               c.name AS category_name,
+               p.productid AS product_id,
+               p.name,
+               trim(regexp_replace(p.descn, '<[^>]*>', '', 'g')) AS description,
+               min(i.listprice) AS min_price,
+               max(i.listprice) AS max_price,
+               coalesce(sum(v.qty), 0) AS total_stock
+        FROM category c
+        JOIN product p ON p.category = c.catid
+        LEFT JOIN item i ON i.productid = p.productid
+        LEFT JOIN inventory v ON v.itemid = i.itemid
+        WHERE c.catid = upper(trim(#{category_id}))
+        GROUP BY c.catid, c.name, p.productid, p.name, p.descn
+        ORDER BY p.productid
+        LIMIT 50
+    evidence:
+      capture:
+        - { step: UC-4/view-category, trace: f73f045ac62a68a51c8f3ff685301578, observed_bind: ["DOGS"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:66
+        - src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:36
+        - src/main/resources/org/mybatis/jpetstore/mapper/CategoryMapper.xml:26
+        - src/main/webapp/WEB-INF/jsp/catalog/Main.jsp:33     # 카테고리 ID 고정 목록(FISH..BIRDS)
+    deviations:
+      - 원본은 카테고리 ID 대소문자를 구분하지만 tool은 대문자로 변환한다.
+      - 원본 화면에 없는 가격대·총 재고를 아이템·재고 테이블에서 집계해 추가한다.
+    verify:
+      golden: { step: UC-4/view-category, args: { category_id: DOGS }, page_regex: "productId=([A-Za-z0-9-]+)", field: product_id }
+      cases:
+        - { name: "소문자 입력 허용", args: { category_id: dogs }, expect: { min_rows: 1 } }
+        - { name: "없는 카테고리", args: { category_id: XXX }, expect: { rows: 0 } }
+    review: { status: pending }
+
+  # ───────────────────────────── UC-3 ─────────────────────────────
+  - name: list_customer_orders
+    use_case: UC-3 고객 주문 내역 조회
+    side_effect: read
+    description: >-
+      고객 ID(username)로 주문 목록을 조회한다(주문일 오름차순). 결제수단 정보는 반환하지 않는다.
+      주문 상세는 get_order로 이어서 조회한다.
+    input:
+      username: { type: string, description: "고객 ID. 예: 'j2ee'" }
+    output: [order_id, order_date, total_price, status, status_name, courier, ship_city]
+    binding:
+      kind: sql
+      reuse: [OrderMapper.getOrdersByUsername]
+      code_mapping: { status: { P: "처리 대기(Pending)" } }
+      statement: |
+        SELECT o.orderid AS order_id,
+               o.orderdate AS order_date,
+               o.totalprice AS total_price,
+               s.status,
+               CASE s.status WHEN 'P' THEN '처리 대기(Pending)' ELSE s.status END AS status_name,
+               o.courier,
+               o.shipcity AS ship_city
+        FROM orders o
+        JOIN orderstatus s ON s.orderid = o.orderid
+        WHERE o.userid = #{username}
+        ORDER BY o.orderdate
+        LIMIT 50
+    evidence:
+      capture:
+        - { step: UC-3/list-orders, trace: 8a8f96c9177d99264897aea1be6e4585, observed_bind: ["j2ee"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:75
+        - src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:59
+        - src/main/java/org/mybatis/jpetstore/domain/Order.java:641    # 상태 기본값 'P'
+    deviations:
+      - 원본은 로그인 세션의 본인 주문만 보여 준다. tool은 상담 직원 권한으로 임의 고객을 조회한다(Q1).
+    verify:
+      golden: { step: UC-3/list-orders, args: { username: j2ee }, page_regex: "orderId=(\\d+)", field: order_id, match: contains }
+      cases:
+        - { name: "결제수단 비노출", args: { username: j2ee }, expect: { not_contains: [creditcard, "9999 9999", exprdate, cardtype] } }
+    review: { status: pending }
+
+  - name: get_order
+    use_case: UC-3 주문 상세 조회
+    side_effect: read
+    description: >-
+      주문 번호와 고객 ID로 주문 상세(배송지, 금액, 상태, 주문 품목)를 조회한다.
+      주문 번호와 고객 ID가 일치하지 않으면 결과가 없다.
+    input:
+      order_id: { type: integer, description: "주문 번호. 예: 1000" }
+      username: { type: string, description: "주문한 고객 ID. 본인 확인용" }
+    output: [order_id, username, order_date, status_name, total_price, ship_to, lines]
+    binding:
+      kind: sql
+      reuse: [OrderMapper.getOrder, LineItemMapper.getLineItemsByOrderId]
+      guards: ["orders.userid = #{username}  (OrderController.viewOrder 소유자 검증 재현)"]
+      code_mapping: { status: { P: "처리 대기(Pending)" } }
+      statement: |
+        SELECT o.orderid AS order_id,
+               o.userid AS username,
+               o.orderdate AS order_date,
+               CASE s.status WHEN 'P' THEN '처리 대기(Pending)' ELSE s.status END AS status_name,
+               o.totalprice AS total_price,
+               json_build_object(
+                 'name', o.shiptofirstname || ' ' || o.shiptolastname,
+                 'address', concat_ws(', ', o.shipaddr1, o.shipaddr2, o.shipcity, o.shipstate, o.shipzip, o.shipcountry)
+               ) AS ship_to,
+               (SELECT json_agg(json_build_object(
+                         'line', l.linenum, 'item_id', l.itemid, 'product', p.name,
+                         'quantity', l.quantity, 'unit_price', l.unitprice) ORDER BY l.linenum)
+                  FROM lineitem l
+                  JOIN item i ON i.itemid = l.itemid
+                  JOIN product p ON p.productid = i.productid
+                 WHERE l.orderid = o.orderid) AS lines
+        FROM orders o
+        JOIN orderstatus s ON s.orderid = o.orderid
+        WHERE o.orderid = #{order_id} AND o.userid = #{username}
+        LIMIT 1
+    evidence:
+      capture:
+        - { step: UC-3/view-order, trace: 78a9e71dde6d61549127ff2c2b00aac5, observed_bind: ["1000"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:222
+        - src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:26
+        - src/main/resources/org/mybatis/jpetstore/mapper/LineItemMapper.xml:26
+    verify:
+      golden: { step: UC-3/view-order, args: { order_id: 1000, username: j2ee }, page_regex: "Total: \\$([\\d,]+\\.\\d{2})", field: total_price, format: "{:.2f}" }
+      cases:
+        - { name: "소유자 불일치 주문 조회 차단", args: { order_id: 1000, username: ACID }, expect: { rows: 0 } }
+        - { name: "결제수단 비노출", args: { order_id: 1000, username: j2ee }, expect: { not_contains: [creditcard, "9999 9999", exprdate] } }
+    review: { status: pending }
+
+  # ───────────────────────────── UC-5 (쓰기) ─────────────────────────────
+  - name: place_order
+    use_case: UC-5 주문 대리 접수
+    side_effect: write
+    description: >-
+      위임받은 고객 계정으로 아이템을 주문한다. 반드시 고객에게 아이템·수량·금액을 확인받은 뒤 호출한다.
+      결제수단은 고객 계정에 등록된 기본값을 쓰며 에이전트가 입력하지 않는다.
+      같은 request_id로 다시 호출하면 새 주문을 만들지 않고 처음 결과를 돌려준다.
+    input:
+      item_id: { type: string, description: "주문할 아이템 ID. 예: 'EST-1' (get_product_details 결과의 item_id)" }
+      quantity: { type: integer, description: "주문 수량(1 이상)" }
+      request_id: { type: string, description: "중복 방지용 요청 ID. 같은 주문 요청을 재시도할 때 같은 값을 쓴다" }
+    output: [order_id, total_price, message]
+    binding:
+      kind: http-flow
+      runtime: fastmcp
+      session:
+        login:
+          method: POST
+          path: /account/signon
+          form: { username: "${env:DELEGATED_USER}", password: "${env:DELEGATED_PASSWORD}", signon: Login }
+          expect: { status: [200, 302] }
+      steps:
+        - name: add-to-cart
+          method: GET
+          path: "/cart/addItem?workingItemId={item_id}"
+          expect: { status: [200], contains: "Shopping Cart" }
+        - name: set-quantity
+          method: POST
+          path: /cart/update
+          form: { "{item_id}": "{quantity}" }
+          expect: { status: [200, 302] }
+        - name: open-order-form
+          method: GET
+          path: /order/new
+          expect: { status: [200], contains: "Payment Details" }
+        - name: submit-order
+          method: POST
+          path: /order/new
+          form: "@prefilled"       # 직전 화면 폼의 기본값을 그대로 제출 — 결제정보는 에이전트를 거치지 않는다
+          expect: { status: [200], contains: "Confirm" }
+        - name: confirm
+          method: POST
+          path: /order/new
+          form: { confirmed: "true" }
+          expect:
+            status: [200]
+            contains: "Thank you, your order has been submitted."
+            extract: { order_id: "Order #(\\d+)", total_price: "Total: \\$([\\d,]+\\.\\d{2})" }
+      idempotency: request_id 기준으로 첫 실행 결과를 런타임에 보관하고 재호출 시 그대로 반환한다(재주문 없음)
+    evidence:
+      capture:
+        - { step: UC-5/signon, trace: e376d0c5c8225ff7d0c8408eca9f361f }
+        - { step: UC-5/add-to-cart, trace: 5cb30a6133fe4ba34397eced0955d477, observed_bind: ["EST-1"] }
+        - { step: UC-5/new-order-form, trace: 0a6c51da477c7aa09f8b943b65e74e32 }
+        - { step: UC-5/submit-order, trace: 87a9b01b1fa5dea37637b3c89b484d39 }
+        - { step: UC-5/confirm-order, trace: 5980dfd427de9dbeadfd0632bdfb48ac }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/AccountController.java:89
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CartController.java:95
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CartController.java:155
+        - src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:99
+        - src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:138
+        - src/main/java/org/mybatis/jpetstore/domain/Order.java:636    # 결제수단 기본값
+    deviations:
+      - 원본은 고객 본인이 로그인해 주문한다. tool은 런타임에 주입된 위임 계정 자격증명으로 로그인한다(Q2).
+      - 배송지 별도 입력(shippingAddressRequired)은 지원하지 않는다. 계정 기본 주소로 배송한다.
+    verify:
+      cases:
+        - { name: "주문 생성", args: { item_id: EST-1, quantity: 2, request_id: verify-run-1 }, expect: { is_error: false, min_rows: 1, not_contains: ["9999 9999"] } }
+        - { name: "같은 request_id 재호출은 재주문 없음", args: { item_id: EST-1, quantity: 2, request_id: verify-run-1 }, expect: { is_error: false, min_rows: 1 } }
+        - { name: "없는 아이템은 오류", args: { item_id: NOPE-1, quantity: 1, request_id: verify-run-2 }, expect: { is_error: true } }
+    review: { status: pending }
+
+review:
+  questions:
+    - id: Q1
+      to: 고객사 운영자/현업
+      text: >-
+        원본 시스템은 고객 본인만 자기 주문을 볼 수 있습니다. 상담 에이전트가 고객 ID만으로 다른 고객의 주문을
+        조회하도록 허용할까요? 허용하지 않으면 게이트웨이에서 사용자 신원을 주입하는 방식으로 바꿔야 합니다.
+    - id: Q2
+      to: 고객사 보안 담당
+      text: >-
+        주문 대리 접수는 고객 계정으로 로그인해야 합니다. 위임 계정 자격증명을 런타임 비밀(환경변수/Vault)로
+        주입하는 방식을 허용합니까? 고객별 위임이 필요하면 SSO 토큰 교환 방식으로 설계를 바꿔야 합니다.
+    - id: Q3
+      to: 고객사 현업
+      text: 에이전트의 쓰기 작업(주문 접수)을 허용합니까? 허용 시 1회 주문 수량·금액 상한이 필요합니까?
+    - id: Q4
+      to: 고객사 운영자
+      text: 주문 상태 코드는 소스상 'P'만 확인됩니다. 운영 DB에 다른 상태 코드(배송중, 완료 등)가 있습니까?
+    - id: Q5
+      to: 고객사 운영자
+      text: >-
+        아이템 상태(item.status) 값 'P'의 의미가 소스에 정의되어 있지 않습니다(에이전트 평가 E2에서 코드값이 그대로 노출됨).
+        의미(판매중/품절 등)와 전체 코드 목록을 알려 주시면 get_product_details에 의미 변환을 추가하겠습니다.

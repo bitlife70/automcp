@@ -1,0 +1,79 @@
+# 생성물 — 직접 수정하지 말 것. 원본: mcp-spec.yaml
+# automcp 0.1.0 / 2026-10-14T15:33:02Z
+# 변경은 IR(mcp-spec.yaml)을 고친 뒤 `automcp compile`로 다시 생성한다.
+runtime: automcp-flow/v1
+name: cs-agent-flows
+base_url: http://jpetstore:8080/jpetstore
+charset: UTF-8
+tools:
+- name: place_order
+  description: 위임받은 고객 계정으로 아이템을 주문한다. 반드시 고객에게 아이템·수량·금액을 확인받은 뒤 호출한다. 결제수단은 고객 계정에 등록된 기본값을 쓰며 에이전트가 입력하지 않는다. 같은 request_id로
+    다시 호출하면 새 주문을 만들지 않고 처음 결과를 돌려준다.
+  side_effect: write
+  input:
+    item_id:
+      type: string
+      description: '주문할 아이템 ID. 예: ''EST-1'' (get_product_details 결과의 item_id)'
+    quantity:
+      type: integer
+      description: 주문 수량(1 이상)
+    request_id:
+      type: string
+      description: 중복 방지용 요청 ID. 같은 주문 요청을 재시도할 때 같은 값을 쓴다
+  session:
+    login:
+      method: POST
+      path: /account/signon
+      form:
+        username: ${env:DELEGATED_USER}
+        password: ${env:DELEGATED_PASSWORD}
+        signon: Login
+      expect:
+        status:
+        - 200
+        - 302
+  steps:
+  - name: add-to-cart
+    method: GET
+    path: /cart/addItem?workingItemId={item_id}
+    expect:
+      status:
+      - 200
+      contains: Shopping Cart
+  - name: set-quantity
+    method: POST
+    path: /cart/update
+    form:
+      '{item_id}': '{quantity}'
+    expect:
+      status:
+      - 200
+      - 302
+  - name: open-order-form
+    method: GET
+    path: /order/new
+    expect:
+      status:
+      - 200
+      contains: Payment Details
+  - name: submit-order
+    method: POST
+    path: /order/new
+    form: '@prefilled'
+    expect:
+      status:
+      - 200
+      contains: Confirm
+  - name: confirm
+    method: POST
+    path: /order/new
+    form:
+      confirmed: 'true'
+    expect:
+      status:
+      - 200
+      contains: Thank you, your order has been submitted.
+      extract:
+        order_id: 'Order #(\d+)'
+        total_price: 'Total: \$([\d,]+\.\d{2})'
+  idempotency_key: request_id

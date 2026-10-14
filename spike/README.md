@@ -1,5 +1,8 @@
 # automcp 0단계 스파이크 — jpetstore + PostgreSQL
 
+> 이 문서는 0단계 기록이다. 이후 단계(CLI 패키지, 플러그인, 쓰기 런타임, 게이트웨이, Oracle)는 루트 [README](../README.md)를 본다.
+> 현재 `docker-compose.yml`은 `capture-kit/`, `examples/jpetstore/build/`를 사용하며 `spike/otel`, `spike/toolbox`, `spike/scripts`는 0단계 당시 산출물이다.
+
 "운영자가 업무를 시연하면 MCP 서버가 된다"는 흐름을 레거시 샘플 앱(jpetstore: Spring MVC + JSP + MyBatis)으로
 끝까지 통과시킨 기술 검증이다.
 

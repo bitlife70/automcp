@@ -1,0 +1,482 @@
+[
+  {
+    "step": null,
+    "trace_id": "81c498c6c3ba0be91541182fd025e6d4",
+    "method": "GET",
+    "route": "/jpetstore/catalog/",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewMain",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-1/search-products",
+    "trace_id": "f0c661fa532c80448343356d8628ed77",
+    "method": "GET",
+    "route": "/jpetstore/catalog/",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewMain",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-1/search-products",
+    "trace_id": "bac8479f06f1ad7f02316d92672dd9b7",
+    "method": "GET",
+    "route": "/jpetstore/catalog/searchProducts",
+    "query": "keyword=fish&searchProducts=Search",
+    "request_params": {
+      "keyword": "fish"
+    },
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.searchProducts",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:127"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": "PRODUCT",
+        "bound_params": [
+          "%fish%"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ProductMapper.searchProductList",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:46"
+        },
+        "statement": "select PRODUCTID, NAME, DESCN as description, CATEGORY as categoryId from PRODUCT WHERE lower(name) like ?"
+      }
+    ]
+  },
+  {
+    "step": "UC-2/view-product",
+    "trace_id": "262737f228595f4abaf8cc72b0bc45f0",
+    "method": "GET",
+    "route": "/jpetstore/catalog/viewProduct",
+    "query": "productId=FI-SW-01",
+    "request_params": {
+      "productid": "FI-SW-01"
+    },
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewProduct",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:87"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [
+          "FI-SW-01"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.getItemListByProduct",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:26"
+        },
+        "statement": "SELECT I.ITEMID, LISTPRICE, UNITCOST, SUPPLIER AS supplierId, I.PRODUCTID AS \"product.productId\", NAME AS \"product.name\", DESCN AS \"product.description\", CATEGORY AS \"product.categoryId\", STATUS, ATTR1 AS attribute1, ATTR2 AS attribute2, ATTR3 AS attribute3, ATTR4 AS attribute4, ATTR5 AS attribute5 FROM ITEM I, PRODUCT P WHERE P.PRODUCTID = I.PRODUCTID AND I.PRODUCTID = ?"
+      },
+      {
+        "operation": "SELECT",
+        "table": "PRODUCT",
+        "bound_params": [
+          "FI-SW-01"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ProductMapper.getProduct",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:26"
+        },
+        "statement": "SELECT PRODUCTID, NAME, DESCN as description, CATEGORY as categoryId FROM PRODUCT WHERE PRODUCTID = ?"
+      }
+    ]
+  },
+  {
+    "step": "UC-2/view-item",
+    "trace_id": "ded5b6e8f3451e37682cdf3b8021c0df",
+    "method": "GET",
+    "route": "/jpetstore/catalog/viewItem",
+    "query": "itemId=EST-1",
+    "request_params": {
+      "itemid": "EST-1"
+    },
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewItem",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:108"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [
+          "EST-1"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.getItem",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:47"
+        },
+        "statement": "select I.ITEMID, LISTPRICE, UNITCOST, SUPPLIER AS supplierId, I.PRODUCTID AS \"product.productId\", NAME AS \"product.name\", DESCN AS \"product.description\", CATEGORY AS \"product.categoryId\", STATUS, ATTR1 AS attribute1, ATTR2 AS attribute2, ATTR3 AS attribute3, ATTR4 AS attribute4, ATTR5 AS attribute5, QTY AS quantity from ITEM I, INVENTORY V, PRODUCT P where P.PRODUCTID = I.PRODUCTID and I.ITEMID = V.ITEMID and I.ITEMID = ?"
+      }
+    ]
+  },
+  {
+    "step": "UC-4/view-category",
+    "trace_id": "e8693c9c917f92df64f5279e31eb3df2",
+    "method": "GET",
+    "route": "/jpetstore/catalog/",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewMain",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-4/view-category",
+    "trace_id": "f73f045ac62a68a51c8f3ff685301578",
+    "method": "GET",
+    "route": "/jpetstore/catalog/viewCategory",
+    "query": "categoryId=DOGS",
+    "request_params": {
+      "categoryid": "DOGS"
+    },
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewCategory",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:66"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": "PRODUCT",
+        "bound_params": [
+          "DOGS"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ProductMapper.getProductListByCategory",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:36"
+        },
+        "statement": "SELECT PRODUCTID, NAME, DESCN as description, CATEGORY as categoryId FROM PRODUCT WHERE CATEGORY = ?"
+      },
+      {
+        "operation": "SELECT",
+        "table": "CATEGORY",
+        "bound_params": [
+          "DOGS"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.CategoryMapper.getCategory",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/CategoryMapper.xml:26"
+        },
+        "statement": "SELECT CATID AS categoryId, NAME, DESCN AS description FROM CATEGORY WHERE CATID = ?"
+      }
+    ]
+  },
+  {
+    "step": "UC-5/signon",
+    "trace_id": "2a311777cb55a3fc2ae355ea875dcea3",
+    "method": "GET",
+    "route": "/jpetstore/account",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "AccountController.signonForm",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/AccountController.java:70"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-5/signon",
+    "trace_id": "e376d0c5c8225ff7d0c8408eca9f361f",
+    "method": "POST",
+    "route": "/jpetstore/account/signon",
+    "query": null,
+    "request_params": {
+      "username": "j2ee"
+    },
+    "status": "302",
+    "controller": {
+      "method": "AccountController.signon",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/AccountController.java:89"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.AccountMapper.getAccountByUsernameAndPassword",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/AccountMapper.xml:52"
+        },
+        "statement": "SELECT SIGNON.USERNAME, ACCOUNT.EMAIL, ACCOUNT.FIRSTNAME, ACCOUNT.LASTNAME, ACCOUNT.STATUS, ACCOUNT.ADDR1 AS address1, ACCOUNT.ADDR2 AS address2, ACCOUNT.CITY, ACCOUNT.STATE, ACCOUNT.ZIP, ACCOUNT.COUNTRY, ACCOUNT.PHONE, PROFILE.LANGPREF AS languagePreference, PROFILE.FAVCATEGORY AS favouriteCategoryId, PROFILE.MYLISTOPT AS listOption, PROFILE.BANNEROPT AS bannerOption, BANNERDATA.BANNERNAME FROM ACCOUNT, PROFILE, SIGNON, BANNERDATA WHERE ACCOUNT.USERID = ? AND SIGNON.PASSWORD = ? AND SIGNON.USERNAME = ACCOUNT.USERID AND PROFILE.USERID = ACCOUNT.USERID AND PROFILE.FAVCATEGORY = BANNERDATA.FAVCATEGORY"
+      }
+    ]
+  },
+  {
+    "step": "UC-5/signon",
+    "trace_id": "ca7fed18d767b75d472f555157eadf31",
+    "method": "GET",
+    "route": "/jpetstore/catalog",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "CatalogController.viewMain",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-5/add-to-cart",
+    "trace_id": "5cb30a6133fe4ba34397eced0955d477",
+    "method": "GET",
+    "route": "/jpetstore/cart/addItem",
+    "query": "workingItemId=EST-1",
+    "request_params": {
+      "workingitemid": "EST-1"
+    },
+    "status": "200",
+    "controller": {
+      "method": "CartController.addItemToCart",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/CartController.java:95"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": "INVENTORY",
+        "bound_params": [
+          "EST-1"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.getInventoryQuantity",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:70"
+        },
+        "statement": "SELECT QTY AS value FROM INVENTORY WHERE ITEMID = ?"
+      }
+    ]
+  },
+  {
+    "step": "UC-5/new-order-form",
+    "trace_id": "0a6c51da477c7aa09f8b943b65e74e32",
+    "method": "GET",
+    "route": "/jpetstore/order/new",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "OrderController.newOrderForm",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:99"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-5/submit-order",
+    "trace_id": "87a9b01b1fa5dea37637b3c89b484d39",
+    "method": "POST",
+    "route": "/jpetstore/order/new",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "OrderController.newOrder",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:138"
+    },
+    "sql": []
+  },
+  {
+    "step": "UC-5/confirm-order",
+    "trace_id": "5980dfd427de9dbeadfd0632bdfb48ac",
+    "method": "POST",
+    "route": "/jpetstore/order/new",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "OrderController.newOrder",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:138"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": "SEQUENCE",
+        "bound_params": [
+          "ordernum"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.SequenceMapper.getSequence",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/SequenceMapper.xml:26"
+        },
+        "statement": "SELECT name, nextid FROM SEQUENCE WHERE NAME = ?"
+      },
+      {
+        "operation": "UPDATE",
+        "table": "SEQUENCE",
+        "bound_params": [
+          "1001",
+          "ordernum"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.SequenceMapper.updateSequence",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/SequenceMapper.xml:32"
+        },
+        "statement": "UPDATE SEQUENCE SET NEXTID = ? WHERE NAME = ?"
+      },
+      {
+        "operation": "UPDATE",
+        "table": "INVENTORY",
+        "bound_params": [
+          "1",
+          "EST-1"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.updateInventoryQuantity",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:76"
+        },
+        "statement": "UPDATE INVENTORY SET QTY = QTY - ? WHERE ITEMID = ?"
+      },
+      {
+        "operation": "INSERT",
+        "table": "ORDERS",
+        "bound_params": [],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.OrderMapper.insertOrder",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:93"
+        },
+        "statement": "INSERT INTO ORDERS (ORDERID, USERID, ORDERDATE, SHIPADDR1, SHIPADDR2, SHIPCITY, SHIPSTATE, SHIPZIP, SHIPCOUNTRY, BILLADDR1, BILLADDR2, BILLCITY, BILLSTATE, BILLZIP, BILLCOUNTRY, COURIER, TOTALPRICE, BILLTOFIRSTNAME, BILLTOLASTNAME, SHIPTOFIRSTNAME, SHIPTOLASTNAME, CREDITCARD, EXPRDATE, CARDTYPE, LOCALE) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      },
+      {
+        "operation": "INSERT",
+        "table": "ORDERSTATUS",
+        "bound_params": [
+          "1000",
+          "1000",
+          "2026-10-14T14:42:53.709168465",
+          "P"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.OrderMapper.insertOrderStatus",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:104"
+        },
+        "statement": "INSERT INTO ORDERSTATUS (ORDERID, LINENUM, TIMESTAMP, STATUS) VALUES (?, ?, ?, ?)"
+      },
+      {
+        "operation": "INSERT",
+        "table": "LINEITEM",
+        "bound_params": [
+          "1000",
+          "1",
+          "EST-1",
+          "1",
+          "16.50"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.LineItemMapper.insertLineItem",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/LineItemMapper.xml:37"
+        },
+        "statement": "INSERT INTO LINEITEM (ORDERID, LINENUM, ITEMID, QUANTITY, UNITPRICE) VALUES (?, ?, ?, ?, ?)"
+      }
+    ]
+  },
+  {
+    "step": "UC-3/list-orders",
+    "trace_id": "8a8f96c9177d99264897aea1be6e4585",
+    "method": "GET",
+    "route": "/jpetstore/order/list",
+    "query": null,
+    "request_params": {},
+    "status": "200",
+    "controller": {
+      "method": "OrderController.listOrders",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:75"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [
+          "j2ee"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.OrderMapper.getOrdersByUsername",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:59"
+        },
+        "statement": "SELECT BILLADDR1 AS billAddress1, BILLADDR2 AS billAddress2, BILLCITY, BILLCOUNTRY, BILLSTATE, BILLTOFIRSTNAME, BILLTOLASTNAME, BILLZIP, SHIPADDR1 AS shipAddress1, SHIPADDR2 AS shipAddress2, SHIPCITY, SHIPCOUNTRY, SHIPSTATE, SHIPTOFIRSTNAME, SHIPTOLASTNAME, SHIPZIP, CARDTYPE, COURIER, CREDITCARD, EXPRDATE AS expiryDate, LOCALE, ORDERDATE, ORDERS.ORDERID, TOTALPRICE, USERID AS username, STATUS FROM ORDERS, ORDERSTATUS WHERE ORDERS.USERID = ? AND ORDERS.ORDERID = ORDERSTATUS.ORDERID ORDER BY ORDERDATE"
+      }
+    ]
+  },
+  {
+    "step": "UC-3/view-order",
+    "trace_id": "78a9e71dde6d61549127ff2c2b00aac5",
+    "method": "GET",
+    "route": "/jpetstore/order/view",
+    "query": "orderId=1000",
+    "request_params": {
+      "orderid": "1000"
+    },
+    "status": "200",
+    "controller": {
+      "method": "OrderController.viewOrder",
+      "evidence": "src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:222"
+    },
+    "sql": [
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [
+          "1000"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.OrderMapper.getOrder",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/OrderMapper.xml:26"
+        },
+        "statement": "select BILLADDR1 AS billAddress1, BILLADDR2 AS billAddress2, BILLCITY, BILLCOUNTRY, BILLSTATE, BILLTOFIRSTNAME, BILLTOLASTNAME, BILLZIP, SHIPADDR1 AS shipAddress1, SHIPADDR2 AS shipAddress2, SHIPCITY, SHIPCOUNTRY, SHIPSTATE, SHIPTOFIRSTNAME, SHIPTOLASTNAME, SHIPZIP, CARDTYPE, COURIER, CREDITCARD, EXPRDATE AS expiryDate, LOCALE, ORDERDATE, ORDERS.ORDERID, TOTALPRICE, USERID AS username, STATUS FROM ORDERS, ORDERSTATUS WHERE ORDERS.ORDERID = ? AND ORDERS.ORDERID = ORDERSTATUS.ORDERID"
+      },
+      {
+        "operation": "SELECT",
+        "table": "LINEITEM",
+        "bound_params": [
+          "1000"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.LineItemMapper.getLineItemsByOrderId",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/LineItemMapper.xml:26"
+        },
+        "statement": "SELECT ORDERID, LINENUM AS lineNumber, ITEMID, QUANTITY, UNITPRICE FROM LINEITEM WHERE ORDERID = ?"
+      },
+      {
+        "operation": "SELECT",
+        "table": null,
+        "bound_params": [
+          "EST-1"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.getItem",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:47"
+        },
+        "statement": "select I.ITEMID, LISTPRICE, UNITCOST, SUPPLIER AS supplierId, I.PRODUCTID AS \"product.productId\", NAME AS \"product.name\", DESCN AS \"product.description\", CATEGORY AS \"product.categoryId\", STATUS, ATTR1 AS attribute1, ATTR2 AS attribute2, ATTR3 AS attribute3, ATTR4 AS attribute4, ATTR5 AS attribute5, QTY AS quantity from ITEM I, INVENTORY V, PRODUCT P where P.PRODUCTID = I.PRODUCTID and I.ITEMID = V.ITEMID and I.ITEMID = ?"
+      },
+      {
+        "operation": "SELECT",
+        "table": "INVENTORY",
+        "bound_params": [
+          "EST-1"
+        ],
+        "mapper": {
+          "id": "org.mybatis.jpetstore.mapper.ItemMapper.getInventoryQuantity",
+          "evidence": "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:70"
+        },
+        "statement": "SELECT QTY AS value FROM INVENTORY WHERE ITEMID = ?"
+      }
+    ]
+  }
+]

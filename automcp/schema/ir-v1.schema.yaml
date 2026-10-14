@@ -1,0 +1,215 @@
+# automcp IR v1 JSON Schema (YAML 표기)
+$schema: https://json-schema.org/draft/2020-12/schema
+title: automcp IR v1
+type: object
+required: [spec_version, system, agent, tools]
+additionalProperties: false
+properties:
+  spec_version: { const: automcp/v1 }
+
+  system:
+    type: object
+    required: [name, database]
+    additionalProperties: false
+    properties:
+      name: { type: string }
+      source_root: { type: string, description: "IR 파일 기준 상대경로. evidence.source의 기준" }
+      capture: { type: string, description: "엔드포인트 맵(JSON) 경로. evidence.capture의 trace 검증용" }
+      har: { type: string, description: "시연 HAR 경로. golden replay용" }
+      database:
+        type: object
+        required: [type, source_name, connection]
+        additionalProperties: false
+        properties:
+          type: { enum: [postgres, oracle, mysql, mssql] }
+          source_name: { type: string }
+          connection:
+            type: object
+            description: "Toolbox source 필드 그대로. 비밀값은 반드시 ${ENV} 참조"
+      http:
+        type: object
+        description: "http-flow 바인딩 대상 레거시 웹 시스템"
+        required: [base_url]
+        properties:
+          base_url: { type: string }
+          charset: { type: string, default: UTF-8 }
+
+  agent:
+    type: object
+    required: [name, persona, acts_as]
+    additionalProperties: false
+    properties:
+      name: { type: string, pattern: "^[a-z][a-z0-9-]*$" }
+      persona: { type: string }
+      acts_as: { type: string, description: "에이전트가 어떤 권한 주체로 동작하는지 (예: cs_staff, delegated_user)" }
+
+  defaults:
+    type: object
+    additionalProperties: false
+    properties:
+      max_rows: { type: integer, minimum: 1, default: 50 }
+
+  policies:
+    type: object
+    additionalProperties: false
+    properties:
+      excluded_columns: { type: array, items: { type: string, pattern: "^[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$" } }
+      pii_output: { type: array, items: { type: string } }
+      allow_write: { type: boolean, default: false }
+
+  tools:
+    type: array
+    minItems: 1
+    items: { $ref: "#/$defs/tool" }
+
+  review:
+    type: object
+    additionalProperties: false
+    properties:
+      questions:
+        type: array
+        items:
+          type: object
+          required: [id, to, text]
+          properties:
+            id: { type: string }
+            to: { type: string }
+            text: { type: string }
+            answer: { type: string }
+
+$defs:
+  param:
+    type: object
+    required: [type, description]
+    additionalProperties: false
+    properties:
+      type: { enum: [string, integer, number, boolean] }
+      description: { type: string, minLength: 5 }
+      required: { type: boolean, default: true }
+
+  evidence:
+    type: object
+    required: [source]
+    additionalProperties: false
+    properties:
+      capture:
+        type: array
+        items:
+          type: object
+          required: [step, trace]
+          additionalProperties: false
+          properties:
+            step: { type: string }
+            trace: { type: string, pattern: "^[0-9a-f]{32}$" }
+            observed_bind: { type: array }
+      source:
+        type: array
+        minItems: 1
+        items: { type: string, pattern: "^[^:]+:[0-9]+$" }
+
+  sql_binding:
+    type: object
+    required: [kind, statement]
+    additionalProperties: false
+    properties:
+      kind: { const: sql }
+      statement: { type: string, description: "파라미터는 #{name} 표기. 컴파일러가 DB 방언 위치 파라미터로 변환" }
+      reuse: { type: array, items: { type: string }, description: "재사용한 매퍼 statement ID (drift 감지 대상)" }
+      transforms: { type: array, items: { type: string } }
+      guards: { type: array, items: { type: string } }
+      code_mapping: { type: object }
+
+  http_flow_binding:
+    type: object
+    required: [kind, steps]
+    additionalProperties: false
+    properties:
+      kind: { const: http-flow }
+      runtime: { enum: [fastmcp, camel], default: fastmcp }
+      session: { type: object, description: "로그인 등 세션 확보 단계" }
+      steps:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [method, path]
+          properties:
+            name: { type: string }
+            method: { enum: [GET, POST] }
+            path: { type: string }
+            form:
+              description: "폼 필드 맵({param} 치환) 또는 \"@prefilled\"(직전 화면 폼의 기본값을 그대로 제출)"
+              oneOf:
+                - { type: object }
+                - { const: "@prefilled" }
+            expect:
+              type: object
+              additionalProperties: false
+              properties:
+                status: { type: array, items: { type: integer } }
+                contains: { type: string }
+                extract: { type: object, additionalProperties: { type: string }, description: "결과 필드 ← 정규식(그룹 1)" }
+      idempotency: { type: string }
+
+  verify:
+    type: object
+    additionalProperties: false
+    properties:
+      golden:
+        type: object
+        required: [step, args, page_regex, field]
+        additionalProperties: false
+        properties:
+          step: { type: string }
+          args: { type: object }
+          page_regex: { type: string, description: "HAR 화면에서 기대값을 뽑는 정규식(그룹 1)" }
+          field: { type: string, description: "tool 결과에서 비교할 필드" }
+          format: { type: string, description: "결과값 포맷(예: '{:.2f}')" }
+          match: { enum: [set_equal, contains], default: set_equal, description: "contains: 캡처 값 ⊆ tool 결과 (데이터가 늘어나는 목록)" }
+      cases:
+        type: array
+        items:
+          type: object
+          required: [name, args, expect]
+          additionalProperties: false
+          properties:
+            name: { type: string }
+            args: { type: object }
+            expect:
+              type: object
+              additionalProperties: false
+              properties:
+                rows: { type: integer }
+                min_rows: { type: integer }
+                is_error: { type: boolean }
+                not_contains: { type: array, items: { type: string } }
+
+  tool:
+    type: object
+    required: [name, use_case, side_effect, description, input, binding, evidence, review]
+    additionalProperties: false
+    properties:
+      name: { type: string, pattern: "^[a-z][a-z0-9_]{2,63}$" }
+      use_case: { type: string }
+      side_effect: { enum: [read, write, destructive] }
+      description: { type: string, minLength: 20 }
+      input:
+        type: object
+        additionalProperties: { $ref: "#/$defs/param" }
+      output: { type: array, items: { type: string } }
+      binding:
+        oneOf:
+          - $ref: "#/$defs/sql_binding"
+          - $ref: "#/$defs/http_flow_binding"
+      evidence: { $ref: "#/$defs/evidence" }
+      deviations: { type: array, items: { type: string } }
+      verify: { $ref: "#/$defs/verify" }
+      review:
+        type: object
+        required: [status]
+        additionalProperties: false
+        properties:
+          status: { enum: [pending, approved, rejected] }
+          by: { type: string }
+          at: { type: string }
+          comment: { type: string }

@@ -3,6 +3,10 @@
     "jpetstore-cs": {
       "type": "http",
       "url": "http://localhost:5000/mcp/cs-agent"
+    },
+    "jpetstore-cs-write": {
+      "type": "http",
+      "url": "http://localhost:5100/mcp/"
     }
   }
 }

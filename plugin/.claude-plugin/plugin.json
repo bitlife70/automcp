@@ -1,0 +1,7 @@
+{
+  "name": "automcp",
+  "version": "0.1.0",
+  "description": "레거시 시스템의 업무 시연 캡처와 소스로부터 MCP 서버를 설계·생성·검증한다 (FDE용)",
+  "author": { "name": "automcp" },
+  "keywords": ["mcp", "legacy", "integration", "fde"]
+}

@@ -1,0 +1,29 @@
+# FDE가 작성하는 업무 의도 카드. 해석 에이전트(explain-legacy)의 입력이다.
+system: jpetstore
+agent:
+  name: cs-agent
+  persona: 고객 상담 직원이 상품·재고·주문을 빠르게 조회하고, 고객 요청 시 주문을 대신 접수하도록 돕는 에이전트
+  users: 상담 직원 (사내)
+
+use_cases:
+  - id: UC-1
+    title: 상품 검색
+    goal: 고객이 말한 상품명(일부)으로 상품을 찾는다
+    steps: [UC-1/search-products]
+  - id: UC-2
+    title: 상품 상세·가격·재고
+    goal: 특정 상품의 판매 단위별 가격과 재고를 알려 준다
+    steps: [UC-2/view-product, UC-2/view-item]
+  - id: UC-3
+    title: 고객 주문 내역 조회
+    goal: 고객 ID로 주문 목록과 주문 상세(품목, 금액, 상태)를 확인한다
+    steps: [UC-3/list-orders, UC-3/view-order]
+  - id: UC-4
+    title: 카테고리별 상품 목록
+    goal: "강아지 상품 뭐 있어요?" 같은 질문에 카테고리 상품 목록으로 답한다
+    steps: [UC-4/view-category]
+  - id: UC-5
+    title: 주문 대리 접수
+    goal: 고객이 요청한 아이템을 고객 계정으로 주문한다 (쓰기)
+    steps: [UC-5/signon, UC-5/add-to-cart, UC-5/new-order-form, UC-5/submit-order, UC-5/confirm-order]
+    notes: 쓰기 작업. 고객 동의 확인과 중복 주문 방지가 필요하다.

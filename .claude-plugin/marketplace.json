@@ -1,0 +1,14 @@
+{
+  "name": "automcp-local",
+  "description": "automcp: 레거시 시스템 → MCP 설계·생성·검증 플러그인 (로컬)",
+  "owner": {
+    "name": "automcp"
+  },
+  "plugins": [
+    {
+      "name": "automcp",
+      "source": "./plugin",
+      "description": "레거시 → MCP 설계·생성·검증 도구"
+    }
+  ]
+}

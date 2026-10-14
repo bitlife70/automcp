@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automcp"
+version = "0.1.0"
+description = "레거시 시스템의 업무 시연 캡처와 소스로부터 MCP 서버 설정을 생성·검증하는 도구"
+requires-python = ">=3.11"
+dependencies = [
+  "pyyaml>=6.0",
+  "sqlglot>=27,<28",
+  "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+runtime = ["mcp>=1.30,<2", "httpx>=0.28", "uvicorn>=0.30", "starlette>=0.40"]
+dev = ["pytest>=8", "mcp>=1.30,<2", "httpx>=0.28"]
+
+[project.scripts]
+automcp = "automcp.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["automcp*"]
+
+[tool.setuptools.package-data]
+automcp = ["schema/*.yaml", "templates/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,20 @@
+# 엔드포인트 맵 (캡처 기반)
+
+| 단계 | 요청 | 컨트롤러 | SQL (매퍼 / 바인딩 값) |
+|---|---|---|---|
+| - | GET /jpetstore/catalog/ | `CatalogController.viewMain`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51 | - |
+| UC-1/search-products | GET /jpetstore/catalog/ | `CatalogController.viewMain`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51 | - |
+| UC-1/search-products | GET /jpetstore/catalog/searchProducts<br>`keyword=fish&searchProducts=Search` | `CatalogController.searchProducts`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:127 | SELECT PRODUCT — `ProductMapper.searchProductList` ['%fish%'] |
+| UC-2/view-product | GET /jpetstore/catalog/viewProduct<br>`productId=FI-SW-01` | `CatalogController.viewProduct`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:87 | SELECT (join) — `ItemMapper.getItemListByProduct` ['FI-SW-01']<br>SELECT PRODUCT — `ProductMapper.getProduct` ['FI-SW-01'] |
+| UC-2/view-item | GET /jpetstore/catalog/viewItem<br>`itemId=EST-1` | `CatalogController.viewItem`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:108 | SELECT (join) — `ItemMapper.getItem` ['EST-1'] |
+| UC-4/view-category | GET /jpetstore/catalog/ | `CatalogController.viewMain`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51 | - |
+| UC-4/view-category | GET /jpetstore/catalog/viewCategory<br>`categoryId=DOGS` | `CatalogController.viewCategory`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:66 | SELECT PRODUCT — `ProductMapper.getProductListByCategory` ['DOGS']<br>SELECT CATEGORY — `CategoryMapper.getCategory` ['DOGS'] |
+| UC-5/signon | GET /jpetstore/account | `AccountController.signonForm`<br>src/main/java/org/mybatis/jpetstore/web/controllers/AccountController.java:70 | - |
+| UC-5/signon | POST /jpetstore/account/signon | `AccountController.signon`<br>src/main/java/org/mybatis/jpetstore/web/controllers/AccountController.java:89 | SELECT (join) — `AccountMapper.getAccountByUsernameAndPassword` [] |
+| UC-5/signon | GET /jpetstore/catalog | `CatalogController.viewMain`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:51 | - |
+| UC-5/add-to-cart | GET /jpetstore/cart/addItem<br>`workingItemId=EST-1` | `CartController.addItemToCart`<br>src/main/java/org/mybatis/jpetstore/web/controllers/CartController.java:95 | SELECT INVENTORY — `ItemMapper.getInventoryQuantity` ['EST-1'] |
+| UC-5/new-order-form | GET /jpetstore/order/new | `OrderController.newOrderForm`<br>src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:99 | - |
+| UC-5/submit-order | POST /jpetstore/order/new | `OrderController.newOrder`<br>src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:138 | - |
+| UC-5/confirm-order | POST /jpetstore/order/new | `OrderController.newOrder`<br>src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:138 | SELECT SEQUENCE — `SequenceMapper.getSequence` ['ordernum']<br>UPDATE SEQUENCE — `SequenceMapper.updateSequence` ['1001', 'ordernum']<br>UPDATE INVENTORY — `ItemMapper.updateInventoryQuantity` ['1', 'EST-1']<br>INSERT ORDERS — `OrderMapper.insertOrder` []<br>INSERT ORDERSTATUS — `OrderMapper.insertOrderStatus` ['1000', '1000', '2026-10-14T14:42:53.709168465', 'P']<br>INSERT LINEITEM — `LineItemMapper.insertLineItem` ['1000', '1', 'EST-1', '1', '16.50'] |
+| UC-3/list-orders | GET /jpetstore/order/list | `OrderController.listOrders`<br>src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:75 | SELECT (join) — `OrderMapper.getOrdersByUsername` ['j2ee'] |
+| UC-3/view-order | GET /jpetstore/order/view<br>`orderId=1000` | `OrderController.viewOrder`<br>src/main/java/org/mybatis/jpetstore/web/controllers/OrderController.java:222 | SELECT (join) — `OrderMapper.getOrder` ['1000']<br>SELECT LINEITEM — `LineItemMapper.getLineItemsByOrderId` ['1000']<br>SELECT (join) — `ItemMapper.getItem` ['EST-1']<br>SELECT INVENTORY — `ItemMapper.getInventoryQuantity` ['EST-1'] |

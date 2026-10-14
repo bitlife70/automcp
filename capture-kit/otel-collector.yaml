@@ -1,0 +1,40 @@
+# automcp 캡처 키트 — OTel Collector 설정
+# - 고객 내부망에서만 동작: 트레이스를 파일(JSON Lines)로만 저장하고 외부로 전송하지 않는다.
+# - 저장 전에 민감 값을 제거한다(수집기 단계 redaction). 원본에 비밀번호·카드번호가 남지 않게 하기 위함.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  transform/redact:
+    error_mode: ignore
+    trace_statements:
+      # 1) 민감 컬럼을 쓰는 INSERT/UPDATE, 또는 WHERE 절에서 민감 컬럼을 비교하는 SELECT → 바인딩 값 전부 삭제
+      #    (SELECT 목록에만 민감 컬럼이 있는 조회는 조건 값이 민감하지 않으므로 유지: 근거 보존)
+      - context: span
+        conditions:
+          - IsMatch(span.attributes["db.statement"], "(?is)^\\s*(insert|update|merge)\\b.*(password|passwd|pwd|creditcard|card_?no|exprdate|cvv|jumin|rrn|ssn)|\\bwhere\\b.*(password|passwd|pwd|creditcard|card_?no|jumin|rrn|ssn)")
+        statements:
+          - delete_matching_keys(span.attributes, "^db\\.query\\.parameter\\..*")
+      # 2) 요청 파라미터 중 민감 이름은 삭제, 카드번호·주민번호 패턴은 마스킹
+      - context: span
+        statements:
+          - delete_matching_keys(span.attributes, "(?i)^servlet\\.request\\.parameter\\..*(pass|pwd|card|cvv|jumin|rrn|ssn).*")
+          - delete_matching_keys(span.attributes, "(?i)^http\\.request\\.header\\.(cookie|authorization)$")
+          - replace_all_patterns(span.attributes, "value", "\\b(?:\\d[ -]?){13,19}\\b", "***")
+          - replace_all_patterns(span.attributes, "value", "\\b\\d{6}-?[1-4]\\d{6}\\b", "***")
+  batch:
+    timeout: 1s
+
+exporters:
+  file:
+    path: /capture/traces.jsonl
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/redact, batch]
+      exporters: [file]

@@ -3,3 +3,8 @@ spike/capture/
 node_modules/
 __pycache__/
 .venv/
+examples/*/capture/raw/
+spike/gateway/.env
+spike/gateway/.token
+spike/gateway/.server-url
+*.egg-info/

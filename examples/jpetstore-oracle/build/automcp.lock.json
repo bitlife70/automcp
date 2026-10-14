@@ -1,0 +1,39 @@
+{
+  "ir": "mcp-spec.yaml",
+  "ir_sha": "8713fb46700dad41",
+  "generated": "2026-10-14T15:33:02Z",
+  "tools": {
+    "search_products": {
+      "review": "pending",
+      "mappers": {
+        "ProductMapper.searchProductList": "859469f85e658197"
+      },
+      "source": {
+        "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:127": "33f8668c0bdcf73a",
+        "src/main/java/org/mybatis/jpetstore/service/CatalogService.java:111": "e4cee1ef02717eea",
+        "src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:46": "01d10c7fe83b2347"
+      }
+    },
+    "get_product_details": {
+      "review": "pending",
+      "mappers": {
+        "ItemMapper.getItemListByProduct": "c036d3c3cb1eecc1",
+        "ItemMapper.getInventoryQuantity": "a3c833ca254272fa"
+      },
+      "source": {
+        "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:87": "8b0f00d3fa356205",
+        "src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:26": "2b8f2407d37cfad3"
+      }
+    },
+    "list_products_by_category": {
+      "review": "pending",
+      "mappers": {
+        "ProductMapper.getProductListByCategory": "d97536c594a16192"
+      },
+      "source": {
+        "src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:66": "f82951bf803507cf",
+        "src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:36": "14c5738380562d13"
+      }
+    }
+  }
+}

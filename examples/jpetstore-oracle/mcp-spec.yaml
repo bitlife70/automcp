@@ -1,0 +1,139 @@
+# automcp IR v1 — jpetstore 카탈로그 (Oracle 방언 검증용)
+# 같은 레거시 소스·같은 시드 데이터를 Oracle에 올렸다고 가정한다. 근거와 golden 화면은 PostgreSQL 시연 캡처를 재사용한다.
+
+spec_version: automcp/v1
+
+system:
+  name: jpetstore-oracle
+  source_root: ../../targets/jpetstore-6
+  capture: ../jpetstore/capture/endpoint-map.json
+  har: ../jpetstore/capture/demo.har
+  database:
+    type: oracle
+    source_name: jpetstore-ora
+    connection:
+      host: oracle
+      port: 1521
+      serviceName: FREEPDB1
+      user: ${MCP_DB_USER}
+      password: ${MCP_DB_PASSWORD}
+
+agent:
+  name: catalog-agent
+  persona: 상품·재고 문의에 답하는 상담 보조 에이전트 (Oracle 운영 DB)
+  acts_as: cs_staff
+
+defaults:
+  max_rows: 50
+
+policies:
+  excluded_columns: [item.unitcost, item.supplier]
+
+tools:
+  - name: search_products
+    use_case: UC-1 상품 검색
+    side_effect: read
+    description: >-
+      상품명 일부로 상품을 검색한다(대소문자 무시). 가격·재고는 get_product_details로 이어서 조회한다.
+    input:
+      keyword: { type: string, description: "검색어 한 단어. 예: 'fish'" }
+    output: [product_id, name, category_id, description]
+    binding:
+      kind: sql
+      reuse: [ProductMapper.searchProductList]
+      transforms: [lowercase, wrap_like_percent, strip_html(description)]
+      statement: |
+        SELECT p.productid AS product_id,
+               p.name,
+               p.category AS category_id,
+               TRIM(REGEXP_REPLACE(p.descn, '<[^>]*>', '')) AS description
+        FROM jpetstore.product p
+        WHERE LOWER(p.name) LIKE '%' || LOWER(TRIM(#{keyword})) || '%'
+        ORDER BY p.productid
+        FETCH FIRST 50 ROWS ONLY
+    evidence:
+      capture:
+        - { step: UC-1/search-products, trace: bac8479f06f1ad7f02316d92672dd9b7, observed_bind: ["%fish%"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:127
+        - src/main/java/org/mybatis/jpetstore/service/CatalogService.java:111
+        - src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:46
+    deviations:
+      - Oracle판은 다중 키워드 OR 검색을 지원하지 않는다(한 단어 검색).
+    verify:
+      golden: { step: UC-1/search-products, args: { keyword: fish }, page_regex: "productId=([A-Za-z0-9-]+)", field: product_id }
+      cases:
+        - { name: "SQL 인젝션 문자열은 값으로만 처리", args: { keyword: "zzz'||'" }, expect: { rows: 0 } }
+    review: { status: pending }
+
+  - name: get_product_details
+    use_case: UC-2 상품 상세·가격·재고
+    side_effect: read
+    description: >-
+      상품 ID로 판매 단위(item)별 가격과 재고 수량을 조회한다.
+    input:
+      product_id: { type: string, description: "상품 ID. 예: 'FI-SW-01'" }
+    output: [product_id, name, item_id, variant, list_price, stock_qty]
+    binding:
+      kind: sql
+      reuse: [ItemMapper.getItemListByProduct, ItemMapper.getInventoryQuantity]
+      statement: |
+        SELECT p.productid AS product_id,
+               p.name,
+               i.itemid AS item_id,
+               TRIM(i.attr1 || ' ' || i.attr2) AS variant,
+               i.listprice AS list_price,
+               v.qty AS stock_qty
+        FROM jpetstore.item i
+        JOIN jpetstore.product p ON p.productid = i.productid
+        LEFT JOIN jpetstore.inventory v ON v.itemid = i.itemid
+        WHERE i.productid = #{product_id}
+        ORDER BY i.itemid
+        FETCH FIRST 50 ROWS ONLY
+    evidence:
+      capture:
+        - { step: UC-2/view-product, trace: 262737f228595f4abaf8cc72b0bc45f0, observed_bind: ["FI-SW-01"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:87
+        - src/main/resources/org/mybatis/jpetstore/mapper/ItemMapper.xml:26
+    verify:
+      golden: { step: UC-2/view-product, args: { product_id: FI-SW-01 }, page_regex: "itemId=([A-Za-z0-9-]+)", field: item_id }
+    review: { status: pending }
+
+  - name: list_products_by_category
+    use_case: UC-4 카테고리별 상품 목록
+    side_effect: read
+    description: >-
+      카테고리의 상품 목록을 가격대와 총 재고와 함께 조회한다. category_id는 FISH, DOGS, CATS, REPTILES, BIRDS 중 하나다.
+    input:
+      category_id: { type: string, description: "카테고리 ID: FISH, DOGS, CATS, REPTILES, BIRDS 중 하나" }
+    output: [category_id, product_id, name, min_price, max_price, total_stock]
+    binding:
+      kind: sql
+      reuse: [ProductMapper.getProductListByCategory]
+      transforms: [uppercase(category_id)]
+      statement: |
+        SELECT p.category AS category_id,
+               p.productid AS product_id,
+               p.name,
+               MIN(i.listprice) AS min_price,
+               MAX(i.listprice) AS max_price,
+               NVL(SUM(v.qty), 0) AS total_stock
+        FROM jpetstore.product p
+        LEFT JOIN jpetstore.item i ON i.productid = p.productid
+        LEFT JOIN jpetstore.inventory v ON v.itemid = i.itemid
+        WHERE p.category = UPPER(TRIM(#{category_id}))
+        GROUP BY p.category, p.productid, p.name
+        ORDER BY p.productid
+        FETCH FIRST 50 ROWS ONLY
+    evidence:
+      capture:
+        - { step: UC-4/view-category, trace: f73f045ac62a68a51c8f3ff685301578, observed_bind: ["DOGS"] }
+      source:
+        - src/main/java/org/mybatis/jpetstore/web/controllers/CatalogController.java:66
+        - src/main/resources/org/mybatis/jpetstore/mapper/ProductMapper.xml:36
+    verify:
+      golden: { step: UC-4/view-category, args: { category_id: DOGS }, page_regex: "productId=([A-Za-z0-9-]+)", field: product_id }
+      cases:
+        - { name: "소문자 입력 허용", args: { category_id: dogs }, expect: { min_rows: 1 } }
+    review: { status: pending }

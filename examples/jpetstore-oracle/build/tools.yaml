@@ -1,0 +1,100 @@
+# 생성물 — 직접 수정하지 말 것. 원본: mcp-spec.yaml
+# automcp 0.1.0 / 2026-10-14T15:33:02Z
+# 변경은 IR(mcp-spec.yaml)을 고친 뒤 `automcp compile`로 다시 생성한다.
+kind: source
+name: jpetstore-ora
+type: oracle
+host: oracle
+port: 1521
+serviceName: FREEPDB1
+user: ${MCP_DB_USER}
+password: ${MCP_DB_PASSWORD}
+---
+kind: tool
+name: search_products
+type: oracle-sql
+source: jpetstore-ora
+description: 상품명 일부로 상품을 검색한다(대소문자 무시). 가격·재고는 get_product_details로 이어서 조회한다.
+parameters:
+- name: keyword
+  type: string
+  description: '검색어 한 단어. 예: ''fish'''
+statement: |
+  SELECT
+    p.productid AS "product_id",
+    p.name AS "name",
+    p.category AS "category_id",
+    TRIM(REGEXP_REPLACE(p.descn, '<[^>]*>', '')) AS "description"
+  FROM jpetstore.product p
+  WHERE
+    LOWER(p.name) LIKE '%' || LOWER(TRIM(:1)) || '%'
+  ORDER BY
+    p.productid
+  FETCH FIRST 50 ROWS ONLY
+---
+kind: tool
+name: get_product_details
+type: oracle-sql
+source: jpetstore-ora
+description: 상품 ID로 판매 단위(item)별 가격과 재고 수량을 조회한다.
+parameters:
+- name: product_id
+  type: string
+  description: '상품 ID. 예: ''FI-SW-01'''
+statement: |
+  SELECT
+    p.productid AS "product_id",
+    p.name AS "name",
+    i.itemid AS "item_id",
+    TRIM(i.attr1 || ' ' || i.attr2) AS "variant",
+    i.listprice AS "list_price",
+    v.qty AS "stock_qty"
+  FROM jpetstore.item i
+  JOIN jpetstore.product p
+    ON p.productid = i.productid
+  LEFT JOIN jpetstore.inventory v
+    ON v.itemid = i.itemid
+  WHERE
+    i.productid = :1
+  ORDER BY
+    i.itemid
+  FETCH FIRST 50 ROWS ONLY
+---
+kind: tool
+name: list_products_by_category
+type: oracle-sql
+source: jpetstore-ora
+description: 카테고리의 상품 목록을 가격대와 총 재고와 함께 조회한다. category_id는 FISH, DOGS, CATS, REPTILES, BIRDS 중 하나다.
+parameters:
+- name: category_id
+  type: string
+  description: '카테고리 ID: FISH, DOGS, CATS, REPTILES, BIRDS 중 하나'
+statement: |
+  SELECT
+    p.category AS "category_id",
+    p.productid AS "product_id",
+    p.name AS "name",
+    MIN(i.listprice) AS "min_price",
+    MAX(i.listprice) AS "max_price",
+    NVL(SUM(v.qty), 0) AS "total_stock"
+  FROM jpetstore.product p
+  LEFT JOIN jpetstore.item i
+    ON i.productid = p.productid
+  LEFT JOIN jpetstore.inventory v
+    ON v.itemid = i.itemid
+  WHERE
+    p.category = UPPER(TRIM(:1))
+  GROUP BY
+    p.category,
+    p.productid,
+    p.name
+  ORDER BY
+    p.productid
+  FETCH FIRST 50 ROWS ONLY
+---
+kind: toolset
+name: catalog-agent
+tools:
+- search_products
+- get_product_details
+- list_products_by_category

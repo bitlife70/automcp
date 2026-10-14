@@ -2,7 +2,9 @@
 #   db             : 고객 운영 DB 역할 (PostgreSQL, jpetstore 원본 스키마/데이터 그대로)
 #   jpetstore      : 고객 레거시 WAS 역할 (Spring MVC + JSP + MyBatis) + OTel 에이전트 부착
 #   otel-collector : 캡처 키트 수집기 (트레이스를 capture/traces.jsonl 로 저장)
-#   toolbox        : 생성된 MCP 서버 런타임 (tools.yaml만으로 동작)
+#   toolbox        : 생성된 MCP 서버 런타임 — 읽기 (tools.yaml만으로 동작)
+#   flow-runtime   : 생성된 MCP 서버 런타임 — 쓰기/화면 흐름 (flows.yaml만으로 동작)
+#   gateway        : MCP 게이트웨이(IBM ContextForge) — 두 런타임을 하나의 인증된 엔드포인트로 통합
 name: automcp-spike
 
 services:
@@ -30,8 +32,8 @@ services:
     command: ["--config=/etc/otelcol/collector.yaml"]
     user: "0:0"
     volumes:
-      - ./otel/collector.yaml:/etc/otelcol/collector.yaml:ro
-      - ./capture:/capture
+      - ../capture-kit/otel-collector.yaml:/etc/otelcol/collector.yaml:ro
+      - ../examples/jpetstore/capture/raw:/capture
 
   jpetstore:
     build:
@@ -66,7 +68,7 @@ services:
     image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.12.0
     platform: linux/amd64
     command: ["--config", "/config/tools.yaml", "--address", "0.0.0.0", "--port", "5000",
-              "--allowed-hosts", "localhost,localhost:5000,127.0.0.1,127.0.0.1:5000",
+              "--allowed-hosts", "localhost,localhost:5000,127.0.0.1,127.0.0.1:5000,toolbox,toolbox:5000",
               "--allowed-origins", "http://localhost,http://127.0.0.1"]
     ports:
       - "5000:5000"
@@ -74,7 +76,81 @@ services:
       MCP_DB_USER: mcp_reader
       MCP_DB_PASSWORD: mcp_reader_dev_only
     volumes:
-      - ./toolbox:/config:ro
+      - ../examples/jpetstore/build:/config:ro
     depends_on:
       db:
         condition: service_healthy
+
+  flow-runtime:
+    build:
+      context: ..
+      dockerfile: docker/flow-runtime.Dockerfile
+    ports:
+      - "5100:5100"
+    environment:
+      # 위임 계정: jpetstore 시드 데이터의 테스트 계정(로컬 개발 전용). 운영에서는 Vault/게이트웨이가 주입한다.
+      DELEGATED_USER: j2ee
+      DELEGATED_PASSWORD: j2ee
+      ALLOWED_HOSTS: localhost:5100,127.0.0.1:5100,flow-runtime:5100
+      AUTOMCP_STATE: /state/idempotency.db
+    volumes:
+      - ../examples/jpetstore/build:/config:ro
+      - flow-state:/state
+    depends_on:
+      - jpetstore
+
+  gateway:
+    image: ghcr.io/ibm/mcp-context-forge:v1.0.10
+    ports:
+      - "4444:4444"
+    env_file: ./gateway/.env          # 비밀값(JWT, 암호화 키, 관리자 비밀번호) — git 제외
+    environment:
+      HOST: 0.0.0.0
+      PORT: "4444"
+      MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      MCPGATEWAY_UI_ENABLED: "false"
+      AUTH_REQUIRED: "true"
+      SSRF_ALLOW_PRIVATE_NETWORKS: "true"   # 사내망의 런타임(toolbox, flow-runtime)을 등록하기 위함
+      CACHE_TYPE: memory                    # 단일 노드 개발 환경. 다중 노드 운영은 redis
+      REDIS_MAX_RETRIES: "1"
+    depends_on:
+      - toolbox
+      - flow-runtime
+
+  # ── Oracle 방언 검증 (docker compose --profile oracle up -d) ──
+  oracle:
+    profiles: [oracle]
+    image: gvenzl/oracle-free:23.9-slim-faststart
+    environment:
+      ORACLE_PASSWORD: oracle_dev_only
+      APP_USER: jpetstore
+      APP_USER_PASSWORD: jpetstore_dev_only
+    ports:
+      - "51521:1521"
+    volumes:
+      - ./oracle/01-jpetstore.sql:/container-entrypoint-initdb.d/01-jpetstore.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  toolbox-oracle:
+    profiles: [oracle]
+    image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.12.0
+    platform: linux/amd64
+    command: ["--config", "/config/tools.yaml", "--address", "0.0.0.0", "--port", "5001",
+              "--allowed-hosts", "localhost:5001,127.0.0.1:5001", "--allowed-origins", "http://localhost"]
+    ports:
+      - "5001:5001"
+    environment:
+      MCP_DB_USER: mcp_reader
+      MCP_DB_PASSWORD: mcp_reader_dev_only
+    volumes:
+      - ../examples/jpetstore-oracle/build:/config:ro
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+volumes:
+  flow-state:
