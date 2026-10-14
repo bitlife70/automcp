@@ -8,3 +8,6 @@ spike/gateway/.env
 spike/gateway/.token
 spike/gateway/.server-url
 *.egg-info/
+.playwright-mcp/
+tmp/
+workspace/

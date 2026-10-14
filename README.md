@@ -33,7 +33,10 @@ intent.yaml  recorder     correlate    explain     contract     compile    verif
 
 ## 빠른 시작 (예제 재현)
 
+처음 사용한다면 단계별 안내 [docs/getting-started.md](docs/getting-started.md)를 먼저 보세요.
+
 ```bash
+git clone https://github.com/bitlife70/automcp.git && cd automcp
 git clone --depth 1 https://github.com/mybatis/jpetstore-6.git targets/jpetstore-6
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev,runtime]"   # Windows. macOS/Linux는 .venv/bin
 (cd recorder && npm install && npx playwright install chromium)
