@@ -1,0 +1,5 @@
+**
+!targets/jpetstore-6/**
+targets/jpetstore-6/.git
+targets/jpetstore-6/target
+!spike/jpetstore/**

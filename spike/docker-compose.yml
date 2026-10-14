@@ -1,0 +1,80 @@
+# automcp 0단계 스파이크
+#   db             : 고객 운영 DB 역할 (PostgreSQL, jpetstore 원본 스키마/데이터 그대로)
+#   jpetstore      : 고객 레거시 WAS 역할 (Spring MVC + JSP + MyBatis) + OTel 에이전트 부착
+#   otel-collector : 캡처 키트 수집기 (트레이스를 capture/traces.jsonl 로 저장)
+#   toolbox        : 생성된 MCP 서버 런타임 (tools.yaml만으로 동작)
+name: automcp-spike
+
+services:
+  db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: jpetstore
+      POSTGRES_USER: jpetstore
+      POSTGRES_PASSWORD: jpetstore_dev_only
+    ports:
+      - "55432:5432"
+    volumes:
+      - ../targets/jpetstore-6/src/main/resources/database/jpetstore-hsqldb-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../targets/jpetstore-6/src/main/resources/database/jpetstore-hsqldb-dataload.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./db/02a-pg-compat.sql:/docker-entrypoint-initdb.d/02a-pg-compat.sql:ro
+      - ./db/03-mcp-reader.sql:/docker-entrypoint-initdb.d/03-mcp-reader.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jpetstore -d jpetstore"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    command: ["--config=/etc/otelcol/collector.yaml"]
+    user: "0:0"
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol/collector.yaml:ro
+      - ./capture:/capture
+
+  jpetstore:
+    build:
+      context: ..
+      dockerfile: spike/jpetstore/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/jpetstore
+      DB_USER: jpetstore
+      DB_PASSWORD: jpetstore_dev_only
+      # --- 캡처 키트: 운영자가 개발/스테이징 WAS에 추가하는 설정은 이것뿐이다 ---
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: jpetstore
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_BSP_SCHEDULE_DELAY: "500"
+      OTEL_INSTRUMENTATION_JDBC_EXPERIMENTAL_CAPTURE_QUERY_PARAMETERS: "true"
+      OTEL_INSTRUMENTATION_COMMON_EXPERIMENTAL_CONTROLLER_TELEMETRY_ENABLED: "true"
+      OTEL_INSTRUMENTATION_SERVLET_EXPERIMENTAL_REQUEST_PARAMETERS_INCLUDED: keyword,itemId,productId,categoryId,orderId,workingItemId,username
+      # 시연 단계 라벨(브라우저 확장/프록시가 붙임) → 트레이스와 유스케이스를 자동 연결
+      OTEL_INSTRUMENTATION_HTTP_SERVER_CAPTURE_REQUEST_HEADERS: x-automcp-step
+    depends_on:
+      db:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  toolbox:
+    image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.12.0
+    platform: linux/amd64
+    command: ["--config", "/config/tools.yaml", "--address", "0.0.0.0", "--port", "5000",
+              "--allowed-hosts", "localhost,localhost:5000,127.0.0.1,127.0.0.1:5000",
+              "--allowed-origins", "http://localhost,http://127.0.0.1"]
+    ports:
+      - "5000:5000"
+    environment:
+      MCP_DB_USER: mcp_reader
+      MCP_DB_PASSWORD: mcp_reader_dev_only
+    volumes:
+      - ./toolbox:/config:ro
+    depends_on:
+      db:
+        condition: service_healthy

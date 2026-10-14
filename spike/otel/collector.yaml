@@ -1,0 +1,22 @@
+# 캡처 키트 수집기: WAS의 OTel 에이전트가 보낸 트레이스를 파일(JSON Lines)로만 저장한다.
+# 외부 전송 없음 → 고객 내부망에서 그대로 사용 가능.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  file:
+    path: /capture/traces.jsonl
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
